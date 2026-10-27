@@ -25,6 +25,15 @@ from vllm.model_executor.layers.quantization.modelopt import ModelOptLinearMetho
 from vllm.scalar_type import scalar_types
 
 deadline=int(os.environ['DEADLINE_EPOCH'])
+mode=os.environ.get('KERNEL_ONLY_VALIDATION','0')
+if mode not in ('0','1'):
+    raise ValueError('KERNEL_ONLY_VALIDATION must be 0 or 1')
+kernel_only=mode=='1'
+cleanup_reserve=120 if kernel_only else 900
+assert time.time()<deadline-cleanup_reserve,'Insufficient original deadline for kernel probes and cleanup reserve'
+print(json.dumps({'validation_mode':'kernel_only' if kernel_only else 'full_model_preflight',
+                  'deadline_epoch':deadline,'cleanup_reserve_s':cleanup_reserve,
+                  'note':'Synthetic kernels only: no model weights or generation; no network or complete-model qualification.'}),flush=True)
 tp=int(os.environ.get('TP_SIZE','4'))
 assert tp in (1,2,4)
 heads=64//tp
@@ -139,7 +148,7 @@ with torch.inference_mode(),set_current_vllm_config(VllmConfig()):
     initialize_model_parallel(tensor_model_parallel_size=1,pipeline_model_parallel_size=1,
                               backend='gloo')
     for device in range(tp):
-        assert time.time()<deadline-900,'Preserve at least15min after kernel probes'
+        assert time.time()<deadline-cleanup_reserve,'Preserve required cleanup reserve after kernel probes'
         torch.cuda.set_device(device)
         assert torch.cuda.get_device_capability(device)==(12,0)
         props=torch.cuda.get_device_properties(device)
@@ -150,8 +159,10 @@ with torch.inference_mode(),set_current_vllm_config(VllmConfig()):
         print(json.dumps({'subgate':'marlin','result':'PASS','details':marlin}),flush=True)
         fp8=fp8_linear_gate()
         torch.cuda.synchronize()
+        assert time.time()<deadline,'Original deadline expired during kernel execution'
         print(json.dumps({'kernel_gate':'PASS','gpu_index':device,'gpu':props.name,
                           'memory_bytes':props.total_memory,'sparse':sparse,'marlin':marlin,
                           'mxfp8_linear_kernels':fp8,'seconds':time.monotonic()-started}),flush=True)
         gc.collect(); torch.cuda.empty_cache()
+assert time.time()<deadline,'Original deadline expired before kernel qualification'
 print('ALL_KERNEL_GATES_PASS',flush=True)

@@ -4,6 +4,14 @@ set -euo pipefail
 umask 077
 # Generate missing per-container host identities; never ship private host keys.
 ssh-keygen -A >/dev/null
+# Vast may attempt sshd before onstart, when this image intentionally has no
+# host keys. Recover that first-boot failure after generating private identities.
+# A local/CI invocation without a Vast identity must not start a listener.
+if [[ ${CONTAINER_ID:-} =~ ^[1-9][0-9]*$ ]]; then
+  install -d -m 0755 /run/sshd
+  /usr/sbin/sshd -t
+  service ssh start
+fi
 python3 /opt/dsv41/verify-runtime.py
 mkdir -p /workspace/dsv41-template/evidence /workspace/models /workspace/hf-metadata
 # Only scripts/assets are copied; evidence and guard state are never overwritten.
@@ -20,5 +28,5 @@ export VAST_CLI=/opt/vast-cli/bin/vastai
 ENV
 python3 /workspace/dsv41-template/hardware_facts.py \
   > "/workspace/dsv41-template/evidence/hardware-$(date -u +%Y%m%dT%H%M%SZ).json"
-printf '%s\n' 'Inventory complete. No weights downloaded or server started.' \
+printf '%s\n' 'Inventory complete. No weights downloaded or inference server started.' \
   'Read /workspace/dsv41-template/OPERATOR.txt and verify the deployed image digest.'
