@@ -40,7 +40,7 @@ jobs:
           docker run --rm --network none --entrypoint bash "$image" -lc 'test -z "$(find /etc/ssh -maxdepth 1 -name "ssh_host_*_key*")"'
           docker run --rm --network none --entrypoint python3 "$image" /opt/dsv41/verify-runtime.py | tee build-evidence/package-check.txt
           docker run --rm --network none --entrypoint python3 "$image" -m unittest discover -s /opt/dsv41/runtime -p 'test_*.py' -v 2>&1 | tee build-evidence/control-tests.txt
-          docker run --rm --network none --tmpfs /workspace:rw,size=128m --entrypoint bash "$image" -lc 'bash /opt/dsv41/init.sh; test -f /workspace/dsv41-template/environment.sh; test -z "$(ls -A /workspace/models)"; test -z "$(ls -A /workspace/hf-metadata)"' | tee build-evidence/inert-startup.txt
+          docker run --rm --network none --tmpfs /workspace:rw,size=128m --entrypoint bash "$image" -euo pipefail -c 'bash /opt/dsv41/init.sh; test -f /workspace/dsv41-template/environment.sh; test -d /workspace/models; test -d /workspace/hf-metadata; test -z "$(ls -A /workspace/models)"; test -z "$(ls -A /workspace/hf-metadata)"' | tee build-evidence/inert-startup.txt
           docker run --rm --network none -e FLASHINFER_CUDA_ARCH_LIST=12.0f --entrypoint python3 "$image" -c 'import torch,vllm,flashinfer; assert torch.__version__ == "2.13.0+cu130"; assert vllm.__version__ == "0.32.0"; assert not torch.cuda.is_available(); print("Runtime imports PASS; GPU execution NOT RUN")' | tee build-evidence/runtime-imports.txt
           docker image inspect "$image" > build-evidence/image-inspect.json
           cid=$(docker create --entrypoint /bin/true "$image")
