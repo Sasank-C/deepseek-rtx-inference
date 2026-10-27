@@ -1,0 +1,75 @@
+name: Build and publish RTX candidate
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: rtx-image-publish
+  cancel-in-progress: false
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      IMAGE_REPOSITORY: ghcr.io/sasank-c/deepseek-rtx96
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Prepare disposable runner disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/powershell
+          docker system prune --all --force
+          df -h /
+          test "$(df --output=avail -B1 / | tail -1)" -ge 45000000000
+          mkdir -p build-evidence
+      - name: Build exact AMD64 candidate
+        run: |
+          docker build --platform linux/amd64 --progress plain \
+            --iidfile build-evidence/image-id.txt \
+            --label org.opencontainers.image.source=https://github.com/Sasank-C/deepseek-rtx-inference \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
+            -t "$IMAGE_REPOSITORY:sha-$GITHUB_SHA" rtx96
+      - name: Validate packages and inert startup without GPU or network
+        run: |
+          image="$IMAGE_REPOSITORY:sha-$GITHUB_SHA"
+          docker run --rm --network none --entrypoint bash "$image" -lc 'test -z "$(find /etc/ssh -maxdepth 1 -name "ssh_host_*_key*")"'
+          docker run --rm --network none --entrypoint python3 "$image" /opt/dsv41/verify-runtime.py | tee build-evidence/package-check.txt
+          docker run --rm --network none --entrypoint python3 "$image" -m unittest discover -s /opt/dsv41/runtime -p 'test_*.py' -v 2>&1 | tee build-evidence/control-tests.txt
+          docker run --rm --network none --tmpfs /workspace:rw,size=128m --entrypoint bash "$image" -lc 'bash /opt/dsv41/init.sh; test -f /workspace/dsv41-template/environment.sh; test -z "$(ls -A /workspace/models)"; test -z "$(ls -A /workspace/hf-metadata)"' | tee build-evidence/inert-startup.txt
+          docker run --rm --network none -e FLASHINFER_CUDA_ARCH_LIST=12.0f --entrypoint python3 "$image" -c 'import torch,vllm,flashinfer; assert torch.__version__ == "2.13.0+cu130"; assert vllm.__version__ == "0.32.0"; assert not torch.cuda.is_available(); print("Runtime imports PASS; GPU execution NOT RUN")' | tee build-evidence/runtime-imports.txt
+          docker image inspect "$image" > build-evidence/image-inspect.json
+          cid=$(docker create --entrypoint /bin/true "$image")
+          docker cp "$cid:/opt/dsv41/kernel-build-manifest.json" build-evidence/kernel-build-manifest.json
+          docker cp "$cid:/opt/dsv41/runtime-packages.txt" build-evidence/runtime-packages.txt
+          docker cp "$cid:/opt/dsv41/vast-packages.txt" build-evidence/vast-packages.txt
+          docker cp "$cid:/opt/dsv41/os-packages.txt" build-evidence/os-packages.txt
+          docker rm "$cid"
+      - name: Publish using repository-scoped Actions credential
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/dsv41-registry-auth"
+          mkdir -p "$DOCKER_CONFIG"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE_REPOSITORY:sha-$GITHUB_SHA" | tee build-evidence/push.txt
+          docker tag "$IMAGE_REPOSITORY:sha-$GITHUB_SHA" "$IMAGE_REPOSITORY:candidate"
+          docker push "$IMAGE_REPOSITORY:candidate"
+          docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REPOSITORY:sha-$GITHUB_SHA" > build-evidence/registry-digests.json
+          {
+            echo '### RTX candidate built and published'
+            echo "Source commit: $GITHUB_SHA"
+            cat build-evidence/registry-digests.json
+            echo 'CPU/package/startup checks passed. GPU kernels, full-model fit and serving performance remain unvalidated.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: rtx-image-evidence
+          path: build-evidence/
+          retention-days: 7

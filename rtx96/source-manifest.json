@@ -1,0 +1,23 @@
+{
+  "status": "source_recipe_prepared_cpu_build_pending_gpu_validation_not_performed",
+  "base_image": "vllm/vllm-openai@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34",
+  "target": "linux/amd64; RTX PRO 6000 Blackwell 96GB; SM120",
+  "model": "pqhaz/DeepSeek-V4.1-Flash-1017-heretic",
+  "model_revision": "12d58ad0878b5008e80d720251adb969a0069412",
+  "runtime": {
+    "vllm": "0.32.0",
+    "torch": "2.13.0+cu130",
+    "flashinfer-python": "0.7.0.post1"
+  },
+  "profiles": [
+    "one_node_cpu",
+    "two_node_gpu"
+  ],
+  "vast_cli": "1.9.1; isolated venv; hash-locked dependency closure",
+  "derived_image_digest": null,
+  "build_notes": [
+    "No model weights or credentials included",
+    "OS apt packages resolved at build and recorded; not a bitwise-reproducible OS lock",
+    "Do not publish or use a mutable tag as release admission"
+  ]
+}

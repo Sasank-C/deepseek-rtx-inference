@@ -1,0 +1,35 @@
+{
+  "checked_utc": "2026-10-27",
+  "platform": "linux_x86_64",
+  "base_flashinfer_python": "0.7.0.post1",
+  "cuda": "13.0",
+  "packages": [
+    {
+      "name": "flashinfer-cubin",
+      "version": "0.7.0.post1",
+      "url": "https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.0.post1/flashinfer_cubin-0.7.0.post1-py3-none-any.whl",
+      "sha256": "f5b5fbf6e914b358219b845ed3ee586ffc1ae3c9768c8b135115ac14afbceed3"
+    },
+    {
+      "name": "flashinfer-jit-cache",
+      "version": "0.7.0.post1+cu130",
+      "url": "https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.0.post1/flashinfer_jit_cache-0.7.0.post1+cu130-cp39-abi3-manylinux_2_28_x86_64.whl",
+      "sha256": "9630eeb32396adb89ce8ffa8465fedd14549eb2e2ad3aff182d9e69be4a12075"
+    },
+    {
+      "name": "flashinfer-jit-cache-sm120f",
+      "version": "0.7.0.post1+cu130",
+      "url": "https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.0.post1/flashinfer_jit_cache_sm120f-0.7.0.post1+cu130-cp39-abi3-manylinux_2_28_x86_64.whl",
+      "sha256": "1c8b5a3614fdc9ad4f0e26502c5438657e28d667d165b05ff0383ca8d208568f"
+    }
+  ],
+  "note": "Official release URLs and SHA256 archive pins. The build independently verifies each complete wheel before installation; these pins do not establish GPU execution or serving performance.",
+  "shim_requires_dist": [
+    "flashinfer-jit-cache-sm100a==0.7.0.post1+cu130",
+    "flashinfer-jit-cache-sm103a==0.7.0.post1+cu130",
+    "flashinfer-jit-cache-sm120f==0.7.0.post1+cu130",
+    "flashinfer-jit-cache-sm80==0.7.0.post1+cu130",
+    "flashinfer-jit-cache-sm89==0.7.0.post1+cu130",
+    "flashinfer-jit-cache-sm90a==0.7.0.post1+cu130"
+  ]
+}

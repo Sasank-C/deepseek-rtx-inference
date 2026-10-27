@@ -1,0 +1,22 @@
+{
+  "profile": "CHOOSE_PROFILE",
+  "instance_id": null,
+  "deadline_epoch": null,
+  "completed_epoch": null,
+  "image_digest": "REPLACE_WITH_ACTUAL_DERIVED_IMAGE_SHA256",
+  "checks": {
+    "hardware": "NOT_RUN",
+    "local_tp4_nccl": "NOT_RUN",
+    "kernel": "NOT_RUN",
+    "launch_parser": "NOT_RUN",
+    "external_cleanup_controller": "NOT_RUN",
+    "cpu_engram_pinned_memory": "NOT_RUN",
+    "private_route": "NOT_RUN",
+    "bidirectional_transfer": "NOT_RUN",
+    "gloo_8rank": "NOT_RUN",
+    "nccl_8rank": "NOT_RUN",
+    "both_guards": "NOT_RUN"
+  },
+  "evidence_files": [],
+  "runtime_base_digest": "sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34"
+}

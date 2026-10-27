@@ -1,0 +1,101 @@
+Operator sequence for an explicitly authorized deployment
+
+Building this image proves neither GPU correctness nor full-model fit. Complete
+all relevant gates using the exact deployed image before downloading weights.
+Keep runtime evidence outside this public repository.
+
+1. Verify the derived registry manifest digest against deployment metadata.
+   Set DSV41_DEPLOYED_IMAGE_DIGEST to that sha256 value, not the parent digest.
+   Use bash /opt/dsv41/init.sh as the Vast SSH onstart command, then:
+     source /workspace/dsv41-template/environment.sh
+     cd /workspace/dsv41-template
+   Select BC_PROFILE=one_node_cpu or BC_PROFILE=two_node_gpu explicitly.
+
+2. Before paid work, record fresh instance/machine IDs, original creation epochs,
+   complete compute/storage/transfer rates and immutable absolute deadlines in an
+   independent controller. Include image pulls and other costs that container NIC
+   counters cannot see. The bundled per-node cap is a conservative template
+   ceiling, not a provider spending limit or an account budget.
+
+   Arm the detached supervisor in the ORIGINAL injected credential environment:
+     python3 arm_container_guard.py -- --instance INSTANCE --machine MACHINE \
+       --interface EXTERNAL_UPLINK --started ORIGINAL_EPOCH --deadline DEADLINE \
+       --hourly ALL_IN_RATE --ingress USD_PER_GB --egress USD_PER_GB \
+       --node-cap NODE_CAP --state /workspace/dsv41-guard/state.json \
+       --cli /opt/vast-cli/bin/vastai
+   Replace placeholders with current verified values. The cap must not exceed
+   the code's ceiling. Never reset creation time or extend an existing deadline.
+   The guard requires exact injected CONTAINER_ID and CONTAINER_API_KEY. SSH may
+   omit these; fail closed if the original in-memory environment is unavailable.
+   Saved Vast API/2FA keys cause refusal, preventing account-key fallback. Do not
+   dump environment values, persist credentials, or copy account keys to workers.
+   Establish independent authenticated destruction capability. Self-read does
+   not prove successful deletion, and host/API failure can defeat a local guard.
+
+3. Inspect actual GPU, driver, package, PCIe, host/cgroup RAM, memlock and disk
+   facts. Require four SM120 96GB GPUs per host and at least600GB free after image
+   setup. Store the checkpoint on disk, never tmpfs. Run with an outer timeout:
+     python3 preflight_runtime.py
+     TP_SIZE=4 timeout --kill-after=30s 600 python3 preflight_kernels.py
+   Preserve actual per-GPU PASS records. Imports alone are insufficient.
+
+4. Export DEADLINE_EPOCH as the immutable deadline. For a single host, run:
+     timeout --kill-after=30s 240 torchrun --standalone --nproc-per-node=4 \
+       preflight_collectives.py --profile tp4-single-cpu
+     timeout --kill-after=30s 600 torchrun --standalone --nproc-per-node=4 \
+       preflight_cpu_engram_tp4.py
+   CPU Engram also requires at least320GiB available host/cgroup memory and the
+   actual four-rank pinned-memory/UVA test; paper estimates are not admission.
+
+   For two hosts, establish supported private transport first. A documented
+   overlay requires matching non-null provider cluster IDs; a kernel VPN requires
+   actual VM/network capability. A Dockerfile or environment flag cannot grant
+   NET_ADMIN/TUN. Public rendezvous port forwarding does not route dynamic peers.
+   Review fresh offer proof with mode, distinct machine_ids, and matching
+   cluster_ids for overlay or vm_eligible=[true,true] for a VM WireGuard path.
+   preflight_network.py --proof FILE --private-iface IFACE --peer-ip PRIVATE_PEER
+   only inspects this proof and the actual route; it does not create transport.
+   Configure networking through the provider-supported mechanism separately.
+   Kernel WireGuard inspection additionally requires the host's wg tool.
+
+   Then set NCCL_SOCKET_IFNAME to '=' followed by the private interface,
+   GLOO_SOCKET_IFNAME to that interface, NCCL_IB_DISABLE=1 for a socket route,
+   and VLLM_HOST_IP to this node's own private IP. Run concurrently on both hosts:
+     timeout --kill-after=30s 240 torchrun --nnodes=2 --nproc-per-node=4 \
+       --node-rank=NODE_RANK --master-addr=PRIVATE_MASTER --master-port=29501 \
+       preflight_collectives.py --profile tp4-pp2-gpu
+   Require all eight actual PASS records, both exit codes, bidirectional transfer
+   and both fresh guard heartbeats. Same region/provider alone proves no route.
+
+5. After reviewing current logs, create admission.json from admission-example.json.
+   Use actual IDs, derived digest, original deadline, timestamps and nonempty
+   evidence files. PASS is an operator attestation, not an automatic controller.
+     python3 download_gated.py --gate admission.json \
+       --guard-status /workspace/dsv41-guard/status.json
+   This downloads the pinned48 shards into one local directory at concurrency4.
+   It stops at the original deadline minus35minutes and on lost guard heartbeat.
+   The reserve is an abort boundary, not a loading/benchmark completion guarantee.
+   Choose the deadline from the cost envelope as well as the wall-clock limit.
+
+6. Run python3 validate_checkpoint.py. This validates sizes, index and header
+   coverage, not a complete checksum pass over every checkpoint byte. Refresh
+   admission after a long download; evidence must be current. For two hosts set
+   NODE_RANK, LOCAL_IP, MASTER_IP and PRIVATE_IFACE, then launch both concurrently:
+     python3 launch_gated.py --gate admission.json \
+       --guard-status /workspace/dsv41-guard/status.json
+   The launcher strips cloud credentials from model workers, honors the original
+   deadline and kills its process group if the guard becomes stale. No automatic
+   restart is performed. Full-model loading and generation must still succeed.
+
+7. Verify /health, /v1/models and actual streaming generation. The server binds
+   127.0.0.1:8000; access it through an authenticated SSH tunnel. Run the supplied
+   benchmark client only against an authorized endpoint. Its --help documents
+   concurrency, prompt/output limits, time bounds and token accounting. Keep
+   uncached and repeated-prefix runs separate; report actual tokens, TTFT,
+   per-request and aggregate throughput, failures and resource samples. Do not
+   claim stable percentile estimates from a few requests.
+
+8. On gate failure, stale guard, fatal model error or deadline, terminate work and
+   destroy all exact authorized rentals through the independent controller.
+   Preserve small sanitized evidence first when time permits. Verify absence of
+   both instances and billable storage. Stopping a model or VM is not deletion.
